@@ -1,0 +1,463 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"><meta name="author" content="LearingLei"><meta name="renderer" content="webkit"><meta name="copyright" content="LearingLei"><meta name="keywords" content="Blog Of LearingLei"><meta name="description" content=""><meta name="Cache-Control" content="no-cache"><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"><title>初了解Neo4j查询语言——CQL · LearningLei's Blog</title><link rel="stylesheet" href="/css/style.css?v=2018.7.9"><link rel="stylesheet" href="/css/animation.css?v=2018.7.9"><link rel="icon" href="/img/assets/favicon.ico"><link rel="stylesheet" href="https://cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css?version=1.5.6"><!-- scripts--><script>(function( w ){
+  "use strict";
+  // rel=preload support test
+  if( !w.loadCSS ){
+    w.loadCSS = function(){};
+  }
+  // define on the loadCSS obj
+  var rp = loadCSS.relpreload = {};
+  // rel=preload feature support test
+  // runs once and returns a function for compat purposes
+  rp.support = (function(){
+    var ret;
+    try {
+      ret = w.document.createElement( "link" ).relList.supports( "preload" );
+    } catch (e) {
+      ret = false;
+    }
+    return function(){
+      return ret;
+    };
+  })();
+
+  // if preload isn't supported, get an asynchronous load by using a non-matching media attribute
+  // then change that media back to its intended value on load
+  rp.bindMediaToggle = function( link ){
+    // remember existing media attr for ultimate state, or default to 'all'
+    var finalMedia = link.media || "all";
+
+    function enableStylesheet(){
+      link.media = finalMedia;
+    }
+
+    // bind load handlers to enable media
+    if( link.addEventListener ){
+      link.addEventListener( "load", enableStylesheet );
+    } else if( link.attachEvent ){
+      link.attachEvent( "onload", enableStylesheet );
+    }
+
+    // Set rel and non-applicable media type to start an async request
+    // note: timeout allows this to happen async to let rendering continue in IE
+    setTimeout(function(){
+      link.rel = "stylesheet";
+      link.media = "only x";
+    });
+    // also enable media after 3 seconds,
+    // which will catch very old browsers (android 2.x, old firefox) that don't support onload on link
+    setTimeout( enableStylesheet, 3000 );
+  };
+
+  // loop through link elements in DOM
+  rp.poly = function(){
+    // double check this to prevent external calls from running
+    if( rp.support() ){
+      return;
+    }
+    var links = w.document.getElementsByTagName( "link" );
+    for( var i = 0; i < links.length; i++ ){
+      var link = links[ i ];
+      // qualify links to those with rel=preload and as=style attrs
+      if( link.rel === "preload" && link.getAttribute( "as" ) === "style" && !link.getAttribute( "data-loadcss" ) ){
+        // prevent rerunning on link
+        link.setAttribute( "data-loadcss", true );
+        // bind listeners to toggle media back
+        rp.bindMediaToggle( link );
+      }
+    }
+  };
+
+  // if unsupported, run the polyfill
+  if( !rp.support() ){
+    // run once at least
+    rp.poly();
+
+    // rerun poly on an interval until onload
+    var run = w.setInterval( rp.poly, 500 );
+    if( w.addEventListener ){
+      w.addEventListener( "load", function(){
+        rp.poly();
+        w.clearInterval( run );
+      } );
+    } else if( w.attachEvent ){
+      w.attachEvent( "onload", function(){
+        rp.poly();
+        w.clearInterval( run );
+      } );
+    }
+  }
+
+
+  // commonjs
+  if( typeof exports !== "undefined" ){
+    exports.loadCSS = loadCSS;
+  }
+  else {
+    w.loadCSS = loadCSS;
+  }
+}( typeof global !== "undefined" ? global : this ) );</script><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js" defer></script><script src="/js/main.js?v=2018.7.9" defer></script><!-- fancybox--><link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.js" defer></script><!-- busuanzi--><script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script><meta name="generator" content="Hexo 4.2.0"></head><body><section class="profile-close" id="cxo-profile"><div class="profile-avatar"><i class="fa fa-caret-left"></i><img src="/img/assets/girl.jpg"></div><!--.profile-saying
+  i.fa.fa-comment
+  .saying--><div class="cxo-profile-inner"><div class="profile-name">LearningLei</div><div class="profile-signature">It's never too late to learn!</div><div class="read-progress"></div></div></section><header id="cxo-intro" style="height: 70vh;background-image: url(/img/intro/index-bg.png);"><nav id="cxo-intro-nav"><section><div class="intro-nav-title"><a href="/">Welcome to my Blog!</a></div><div class="intro-nav-label-box"><a href="/">Home</a><a href="/about/">About</a><a href="/archives/">Archives</a><a href="/tags/">Tags</a></div><i class="fa fa-bars intro-nav-menu"><div class="intro-nav-drop"><a href="/">Home</a><a href="/about/">About</a><a href="/archives/">Archives</a><a href="/tags/">Tags</a></div></i><div class="clear"></div></section></nav><h1 class="post-title">初了解Neo4j查询语言——CQL</h1><div class="post-intros"><div class="post-intro-meta"><span class="post-intro-time"><i class="post-intro-calendar fa fa-calendar"></i><span>2020-03-14</span></span></div><div class="post-intro-read"><span> Word count: <span class="post-count">1.3k</span> | Reading time: <span class="post-count">5</span>min</span></div></div></header><article class="cxo-up" id="cxo-content-outer"><section id="cxo-content-inner"><article class="article-entry" id="post"><h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>CQL代表Cypher查询语言，Neo4j具有CQL作为查询语言。它遵循SQL语法，是一种声明性模式匹配语言，具有非常简单且人性化、可读的格式。</p>
+<h1 id="关系基础"><a href="#关系基础" class="headerlink" title="关系基础"></a>关系基础</h1><p>Neo4j图数据库遵循属性图模型来存储和管理其数据。</p>
+<p>根据属性图模型，关系应该是定向的。 否则，Neo4j将抛出一个错误消息。</p>
+<p>基于方向性，Neo4j关系被分为两种主要类型：</p>
+<ul>
+<li><p>单向关系</p>
+</li>
+<li><p>双向关系</p>
+</li>
+</ul>
+<h1 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h1><p>用于定义节点或关系的属性。</p>
+<table>
+<thead>
+<tr>
+<th align="center">No.</th>
+<th align="center">数据类型</th>
+<th align="center">用法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1</td>
+<td align="center">boolean</td>
+<td align="center">表示布尔文字：true\false</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center">byte</td>
+<td align="center">表示8位整数</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center">short</td>
+<td align="center">表示16位整数</td>
+</tr>
+<tr>
+<td align="center">4</td>
+<td align="center">int</td>
+<td align="center">表示32位整数</td>
+</tr>
+<tr>
+<td align="center">5</td>
+<td align="center">long</td>
+<td align="center">表示64位整数</td>
+</tr>
+<tr>
+<td align="center">6</td>
+<td align="center">float</td>
+<td align="center">表示32位浮点数</td>
+</tr>
+<tr>
+<td align="center">7</td>
+<td align="center">double</td>
+<td align="center">表示64位浮点数</td>
+</tr>
+<tr>
+<td align="center">8</td>
+<td align="center">char</td>
+<td align="center">表示16位字符</td>
+</tr>
+<tr>
+<td align="center">9</td>
+<td align="center">String</td>
+<td align="center">表示字符串</td>
+</tr>
+</tbody></table>
+<h1 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h1><table>
+<thead>
+<tr>
+<th align="center">No.</th>
+<th align="center">CQL命令</th>
+<th align="center">用法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1</td>
+<td align="center">CREATE</td>
+<td align="center">创建节点、关系和属性</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center">MATCH</td>
+<td align="center">检索有关节点、关系和属性数据</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center">RETURN</td>
+<td align="center">返回查询结果</td>
+</tr>
+<tr>
+<td align="center">4</td>
+<td align="center">WHERE</td>
+<td align="center">提供条件过滤检索数据</td>
+</tr>
+<tr>
+<td align="center">5</td>
+<td align="center">DELETE</td>
+<td align="center">删除节点和关系</td>
+</tr>
+<tr>
+<td align="center">6</td>
+<td align="center">REMOVE</td>
+<td align="center">删除节点和关系的属性</td>
+</tr>
+<tr>
+<td align="center">7</td>
+<td align="center">ORDER BY</td>
+<td align="center">排序检索数据</td>
+</tr>
+<tr>
+<td align="center">8</td>
+<td align="center">SET</td>
+<td align="center">添加或更新标签</td>
+</tr>
+</tbody></table>
+<h1 id="常用函数"><a href="#常用函数" class="headerlink" title="常用函数"></a>常用函数</h1><table>
+<thead>
+<tr>
+<th align="center">No.</th>
+<th align="center">函数</th>
+<th align="center">用法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1</td>
+<td align="center">String</td>
+<td align="center">用于使用String字面量</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center">Aggregation</td>
+<td align="center">用于对于CQL查询结果执行一些聚合操作</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center">Relationship</td>
+<td align="center">用于获取关系的细节，如startnode,endnode等</td>
+</tr>
+</tbody></table>
+<h1 id="语法"><a href="#语法" class="headerlink" title="语法"></a>语法</h1><h2 id="CREATE"><a href="#CREATE" class="headerlink" title="CREATE"></a>CREATE</h2><h3 id="创建节点（属性）"><a href="#创建节点（属性）" class="headerlink" title="创建节点（属性）"></a>创建节点（属性）</h3><p><strong>创建没有属性的节点</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (&lt;node-name&gt;:&lt;label-name&gt;)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (emp:Employee)</span><br></pre></td></tr></table></figure>
+
+<p><strong>创建具有属性的节点</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">CREATE(</span><br><span class="line">    &lt;node-name&gt;:&lt;label-name&gt;</span><br><span class="line">    &#123;</span><br><span class="line">    &lt;key&gt;:&lt;value&gt;</span><br><span class="line">    ...</span><br><span class="line">    &lt;n-key&gt;:&lt;n-value&gt;</span><br><span class="line">    &#125;</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (dept:Dept &#123; deptno:10,dname:&quot;Accounting&quot;,location:&quot;Hyderabad&quot; &#125;)</span><br></pre></td></tr></table></figure>
+
+<p><strong>创建多个标签的节点</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (&lt;node-name&gt;:&lt;label-name1&gt;:&lt;label-name2&gt;...:&lt;label-namen&gt;)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (m:Movie:Cinema:Film:Picture)</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="创建关系"><a href="#创建关系" class="headerlink" title="创建关系"></a>创建关系</h3><p><strong>使用新节点创建关系</strong></p>
+<p>单向：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (&lt;node-name&gt;:&lt;label-name&gt;)-[&lt;relationshp-name&gt;:&lt;relationship-label-name&gt;]-&gt;(&lt;node-name&gt;:&lt;label-name)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (e:Employee)-[r:DemoRelation]-&gt;(c:Employee)</span><br></pre></td></tr></table></figure>
+
+<p>双向：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (&lt;node-name&gt;:&lt;label-name)&lt;-[&lt;relationshp-name&gt;:&lt;relationship-label-name&gt;]-&gt;(&lt;node-name&gt;:&lt;label-name)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE (e:Employee)&lt;-[r:DemoRelation]-&gt;(c:Employee)</span><br></pre></td></tr></table></figure>
+
+<p><strong>使用已知节点创建带属性的关系：</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MATCH (&lt;node-name&gt;:&lt;label-name&gt;),(&lt;node-name&gt;:&lt;label-name&gt;)</span><br><span class="line">CREATE </span><br><span class="line">(&lt;node-name&gt;)-[&lt;relationshp-name&gt;:&lt;relationship-label-name&gt;&#123;&lt;define-properties-list&gt;&#125;]-&gt;(&lt;node-name&gt;)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MATCH (cust:Customer),(cc:CreditCard) </span><br><span class="line">CREATE (cust)-[r:DO_SHOPPING_WITH&#123;shopdate:&quot;12&#x2F;12&#x2F;2014&quot;,price:55000&#125;]-&gt;(cc) </span><br><span class="line">RETURN r</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="MATCH"><a href="#MATCH" class="headerlink" title="MATCH"></a>MATCH</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">MATCH</span><br><span class="line">(</span><br><span class="line">    &lt;node-name&gt;:&lt;label-name&gt;</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">MATCH (dept:Dept)</span><br></pre></td></tr></table></figure>
+
+<p>注：MATCH单独使用会报错，需要和RETURN等一起使用。</p>
+<h2 id="RETURN"><a href="#RETURN" class="headerlink" title="RETURN"></a>RETURN</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">RETURN</span><br><span class="line">    &lt;node-name&gt;.&lt;property1-name&gt;</span><br><span class="line">    &lt;node-name&gt;.&lt;propertyn-name&gt;</span><br></pre></td></tr></table></figure>
+
+<p>注：用在MATCH之后。</p>
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">MATCH (e:Employee) RETURN e</span><br><span class="line"></span><br><span class="line">MATCH (dept: Dept)</span><br><span class="line">RETURN dept.deptno,dept.dname,dept.location</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="WHERE"><a href="#WHERE" class="headerlink" title="WHERE"></a>WHERE</h2><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">WHERE &lt;property-name&gt; &lt;comparison-operator&gt; &lt;value&gt;</span><br></pre></td></tr></table></figure>
+
+<p>注：用在MATCH之后。</p>
+<h3 id="WHERE语法说明"><a href="#WHERE语法说明" class="headerlink" title="WHERE语法说明"></a>WHERE语法说明</h3><table>
+<thead>
+<tr>
+<th align="center">No.</th>
+<th align="center">语法元素</th>
+<th align="center">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1</td>
+<td align="center">WHERE</td>
+<td align="center">Neo4j CQL关键字</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center"><property-name></property-name></td>
+<td align="center">节点或关系的属性名称</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center"><comparison-operator></comparison-operator></td>
+<td align="center">Neo4j CQL比较运算符之一</td>
+</tr>
+<tr>
+<td align="center">4</td>
+<td align="center"><value></value></td>
+<td align="center">字面值，如数字文字，字符串文字等</td>
+</tr>
+</tbody></table>
+<h3 id="比较运算符"><a href="#比较运算符" class="headerlink" title="比较运算符"></a>比较运算符</h3><table>
+<thead>
+<tr>
+<th align="center">No.</th>
+<th align="center">比较运算符</th>
+<th align="center">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1</td>
+<td align="center">=</td>
+<td align="center">“等于”运算符</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center">&lt;&gt;</td>
+<td align="center">“不等于”运算符</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center">&lt;</td>
+<td align="center">“小于”运算符</td>
+</tr>
+<tr>
+<td align="center">4</td>
+<td align="center">&gt;</td>
+<td align="center">“大于”运算符</td>
+</tr>
+<tr>
+<td align="center">5</td>
+<td align="center">&lt;=</td>
+<td align="center">“小于或等于”运算符</td>
+</tr>
+<tr>
+<td align="center">6</td>
+<td align="center">&gt;=</td>
+<td align="center">“大于或等于”运算符</td>
+</tr>
+</tbody></table>
+<h3 id="布尔运算符"><a href="#布尔运算符" class="headerlink" title="布尔运算符"></a>布尔运算符</h3><p>在一个命令上可以使用布尔运算符放置多个条件。</p>
+<table>
+<thead>
+<tr>
+<th align="center">No.</th>
+<th align="center">布尔运算符</th>
+<th align="center">描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1</td>
+<td align="center">AND</td>
+<td align="center">和运算符</td>
+</tr>
+<tr>
+<td align="center">2</td>
+<td align="center">OR</td>
+<td align="center">或运算符</td>
+</tr>
+<tr>
+<td align="center">3</td>
+<td align="center">NOT</td>
+<td align="center">非运算符</td>
+</tr>
+<tr>
+<td align="center">4</td>
+<td align="center">XOR</td>
+<td align="center">异或运算符</td>
+</tr>
+</tbody></table>
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MATCH (emp:Employee) </span><br><span class="line">WHERE emp.name &#x3D; &#39;Abc&#39; OR emp.name &#x3D; &#39;Xyz&#39;</span><br><span class="line">RETURN emp</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="DELETE"><a href="#DELETE" class="headerlink" title="DELETE"></a>DELETE</h2><h3 id="删除节点子句"><a href="#删除节点子句" class="headerlink" title="删除节点子句"></a>删除节点子句</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">DELETE &lt;node-name-list&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">MATCH (e: Employee) DELETE e</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="删除节点和关系子句"><a href="#删除节点和关系子句" class="headerlink" title="删除节点和关系子句"></a>删除节点和关系子句</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">DELETE &lt;node1-name&gt;,&lt;node2-name&gt;,&lt;relationship-name&gt;</span><br></pre></td></tr></table></figure>
+
+<p>注：用在MATCH之后。</p>
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">MATCH (cc: CreditCard)-[rel]-(c:Customer) </span><br><span class="line">DELETE cc,c,rel</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="REMOVE"><a href="#REMOVE" class="headerlink" title="REMOVE"></a>REMOVE</h2><ul>
+<li>删除节点或关系的标签</li>
+<li>删除节点或关系的属性</li>
+</ul>
+<p><strong>与DELETE的区别：</strong></p>
+<ul>
+<li>DELETE操作用于删除节点和关联关系。</li>
+<li>REMOVE操作用于删除标签和属性。</li>
+</ul>
+<p><strong>与DELETE相同点：</strong></p>
+<ul>
+<li>两个命令都应该与MATCH命令一起使用。</li>
+</ul>
+<h3 id="删除属性"><a href="#删除属性" class="headerlink" title="删除属性"></a>删除属性</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">REMOVE &lt;node-name&gt;.&lt;property1-name&gt;,&lt;node-name&gt;.&lt;property2-name&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MATCH (dc:DebitCard) </span><br><span class="line">REMOVE dc.cvv</span><br><span class="line">RETURN dc</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="删除标签"><a href="#删除标签" class="headerlink" title="删除标签"></a>删除标签</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">REMOVE &lt;label-name-list&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CREATE (m:Movie:Pic)</span><br><span class="line">MATCH (m:Movie) </span><br><span class="line">REMOVE m:Pic</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="ORDER-BY"><a href="#ORDER-BY" class="headerlink" title="ORDER BY"></a>ORDER BY</h2><p>Neo4j CQL在MATCH命令中提供了“ORDER BY”子句，对MATCH查询返回的结果进行排序。</p>
+<p>默认情况下，它按升序对行进行排序。 如果我们要按降序对它们进行排序，我们需要使用DESC子句。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ORDER BY &lt;property-name-list&gt; [DESC]</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MATCH (emp:Employee)</span><br><span class="line">RETURN emp.empid,emp.name,emp.salary,emp.deptno</span><br><span class="line">ORDER BY emp.name</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="SET"><a href="#SET" class="headerlink" title="SET"></a>SET</h2><p>Neo4j CQL提供SET子句来执行以下操作：</p>
+<ul>
+<li>向现有节点或关系添加新属性</li>
+<li>添加或更新属性值</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SET &lt;node-label-name&gt;.&lt;property1-name&gt;,...&lt;node-labeln-name&gt;.&lt;propertyn-name&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>示例</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MATCH (dc:DebitCard)</span><br><span class="line">SET dc.atm_pin &#x3D; 3456</span><br><span class="line">RETURN dc</span><br></pre></td></tr></table></figure>
+
+
+
+<p>（未完待续…）</p>
+</article><!-- lincense--><div class="license-wrapper"><p> <span>Author:  </span><a href="http://learingLei.github.io">LearingLei</a></p><p> <span>Link:  </span><a href="http://learinglei.github.io/2020/03/14/%E5%88%9D%E4%BA%86%E8%A7%A3Neo4j%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80%E2%80%94%E2%80%94CQL/">http://learinglei.github.io/2020/03/14/%E5%88%9D%E4%BA%86%E8%A7%A3Neo4j%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80%E2%80%94%E2%80%94CQL/</a></p><p> <span>Copyright:  </span><span>All articles in this blog are licensed under <a rel="license noopener" href="https://creativecommons.org/licenses/by-nc-nd/3.0" target="_blank">CC BY-NC-SA 3.0</a> unless stating additionally.</span></p></div><div class="post-paginator"><a class="nextSlogan" href="/2020/03/14/Neo4j%E7%9A%84%E5%AD%A6%E4%B9%A0%E5%92%8C%E4%BD%BF%E7%94%A8/" title="Neo4j的学习和使用"><span>NextPost ></span><br><span class="nextTitle">Neo4j的学习和使用</span></a><div class="clear"></div></div><div id="comment"></div></section></article><footer id="cxo-footer-outer"><div id="cxo-footer-inner"><p class="footer-container"><span>Site by </span><a href="http://hexo.io" target="_blank" rel="noopener"><span>Hexo</span></a><span> | theme </span><a href="https://github.com/Longlongyu/hexo-theme-Cxo" target="_blank" rel="noopener"><span>Cxo</span></a></p><i class="fa fa-user"> </i><span id="busuanzi_value_site_uv"></span><span> | </span><i class="fa fa-eye"> </i><span id="busuanzi_value_site_pv"></span></div></footer><!-- catelog--><div class="toc-wrapper" style="top: 70vh;"><div class="toc-catalog"><i class="fa fa-list"> </i><span>CATALOG</span></div><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#简介"><span class="toc-number">1.</span> <span class="toc-text">简介</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#关系基础"><span class="toc-number">2.</span> <span class="toc-text">关系基础</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#数据类型"><span class="toc-number">3.</span> <span class="toc-text">数据类型</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#常用命令"><span class="toc-number">4.</span> <span class="toc-text">常用命令</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#常用函数"><span class="toc-number">5.</span> <span class="toc-text">常用函数</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#语法"><span class="toc-number">6.</span> <span class="toc-text">语法</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#CREATE"><span class="toc-number">6.1.</span> <span class="toc-text">CREATE</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#创建节点（属性）"><span class="toc-number">6.1.1.</span> <span class="toc-text">创建节点（属性）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#创建关系"><span class="toc-number">6.1.2.</span> <span class="toc-text">创建关系</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#MATCH"><span class="toc-number">6.2.</span> <span class="toc-text">MATCH</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#RETURN"><span class="toc-number">6.3.</span> <span class="toc-text">RETURN</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#WHERE"><span class="toc-number">6.4.</span> <span class="toc-text">WHERE</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#WHERE语法说明"><span class="toc-number">6.4.1.</span> <span class="toc-text">WHERE语法说明</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#比较运算符"><span class="toc-number">6.4.2.</span> <span class="toc-text">比较运算符</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#布尔运算符"><span class="toc-number">6.4.3.</span> <span class="toc-text">布尔运算符</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#DELETE"><span class="toc-number">6.5.</span> <span class="toc-text">DELETE</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#删除节点子句"><span class="toc-number">6.5.1.</span> <span class="toc-text">删除节点子句</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#删除节点和关系子句"><span class="toc-number">6.5.2.</span> <span class="toc-text">删除节点和关系子句</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#REMOVE"><span class="toc-number">6.6.</span> <span class="toc-text">REMOVE</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#删除属性"><span class="toc-number">6.6.1.</span> <span class="toc-text">删除属性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#删除标签"><span class="toc-number">6.6.2.</span> <span class="toc-text">删除标签</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#ORDER-BY"><span class="toc-number">6.7.</span> <span class="toc-text">ORDER BY</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SET"><span class="toc-number">6.8.</span> <span class="toc-text">SET</span></a></li></ol></li></ol></div><!-- top--><i class="fa fa-arrow-up close" id="go-up" aria-hidden="true"></i></body></html>
