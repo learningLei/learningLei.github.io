@@ -1,0 +1,152 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"><meta name="author" content="LearingLei"><meta name="renderer" content="webkit"><meta name="copyright" content="LearingLei"><meta name="keywords" content="Blog Of LearingLei"><meta name="description" content=""><meta name="Cache-Control" content="no-cache"><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"><title>mysql并发相关知识 · LearningLei's Blog</title><link rel="stylesheet" href="/css/style.css?v=2018.7.9"><link rel="stylesheet" href="/css/animation.css?v=2018.7.9"><link rel="icon" href="/img/assets/favicon.ico"><link rel="stylesheet" href="https://cdn.bootcss.com/font-awesome/4.7.0/css/font-awesome.min.css?version=1.5.6"><!-- scripts--><script>(function( w ){
+  "use strict";
+  // rel=preload support test
+  if( !w.loadCSS ){
+    w.loadCSS = function(){};
+  }
+  // define on the loadCSS obj
+  var rp = loadCSS.relpreload = {};
+  // rel=preload feature support test
+  // runs once and returns a function for compat purposes
+  rp.support = (function(){
+    var ret;
+    try {
+      ret = w.document.createElement( "link" ).relList.supports( "preload" );
+    } catch (e) {
+      ret = false;
+    }
+    return function(){
+      return ret;
+    };
+  })();
+
+  // if preload isn't supported, get an asynchronous load by using a non-matching media attribute
+  // then change that media back to its intended value on load
+  rp.bindMediaToggle = function( link ){
+    // remember existing media attr for ultimate state, or default to 'all'
+    var finalMedia = link.media || "all";
+
+    function enableStylesheet(){
+      link.media = finalMedia;
+    }
+
+    // bind load handlers to enable media
+    if( link.addEventListener ){
+      link.addEventListener( "load", enableStylesheet );
+    } else if( link.attachEvent ){
+      link.attachEvent( "onload", enableStylesheet );
+    }
+
+    // Set rel and non-applicable media type to start an async request
+    // note: timeout allows this to happen async to let rendering continue in IE
+    setTimeout(function(){
+      link.rel = "stylesheet";
+      link.media = "only x";
+    });
+    // also enable media after 3 seconds,
+    // which will catch very old browsers (android 2.x, old firefox) that don't support onload on link
+    setTimeout( enableStylesheet, 3000 );
+  };
+
+  // loop through link elements in DOM
+  rp.poly = function(){
+    // double check this to prevent external calls from running
+    if( rp.support() ){
+      return;
+    }
+    var links = w.document.getElementsByTagName( "link" );
+    for( var i = 0; i < links.length; i++ ){
+      var link = links[ i ];
+      // qualify links to those with rel=preload and as=style attrs
+      if( link.rel === "preload" && link.getAttribute( "as" ) === "style" && !link.getAttribute( "data-loadcss" ) ){
+        // prevent rerunning on link
+        link.setAttribute( "data-loadcss", true );
+        // bind listeners to toggle media back
+        rp.bindMediaToggle( link );
+      }
+    }
+  };
+
+  // if unsupported, run the polyfill
+  if( !rp.support() ){
+    // run once at least
+    rp.poly();
+
+    // rerun poly on an interval until onload
+    var run = w.setInterval( rp.poly, 500 );
+    if( w.addEventListener ){
+      w.addEventListener( "load", function(){
+        rp.poly();
+        w.clearInterval( run );
+      } );
+    } else if( w.attachEvent ){
+      w.attachEvent( "onload", function(){
+        rp.poly();
+        w.clearInterval( run );
+      } );
+    }
+  }
+
+
+  // commonjs
+  if( typeof exports !== "undefined" ){
+    exports.loadCSS = loadCSS;
+  }
+  else {
+    w.loadCSS = loadCSS;
+  }
+}( typeof global !== "undefined" ? global : this ) );</script><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js" defer></script><script src="/js/main.js?v=2018.7.9" defer></script><!-- fancybox--><link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.js" defer></script><!-- busuanzi--><script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script><meta name="generator" content="Hexo 4.2.0"></head><body><section class="profile-close" id="cxo-profile"><div class="profile-avatar"><i class="fa fa-caret-left"></i><img src="/img/assets/girl.jpg"></div><!--.profile-saying
+  i.fa.fa-comment
+  .saying--><div class="cxo-profile-inner"><div class="profile-name">LearningLei</div><div class="profile-signature">It's never too late to learn!</div><div class="read-progress"></div></div></section><header id="cxo-intro" style="height: 70vh;background-image: url(/img/intro/index-bg.png);"><nav id="cxo-intro-nav"><section><div class="intro-nav-title"><a href="/">Welcome to my Blog!</a></div><div class="intro-nav-label-box"><a href="/">Home</a><a href="/about/">About</a><a href="/archives/">Archives</a><a href="/tags/">Tags</a></div><i class="fa fa-bars intro-nav-menu"><div class="intro-nav-drop"><a href="/">Home</a><a href="/about/">About</a><a href="/archives/">Archives</a><a href="/tags/">Tags</a></div></i><div class="clear"></div></section></nav><h1 class="post-title">mysql并发相关知识</h1><div class="post-intros"><div class="post-intro-meta"><span class="post-intro-time"><i class="post-intro-calendar fa fa-calendar"></i><span>2020-04-11</span></span></div><div class="post-intro-read"><span> Word count: <span class="post-count">2.7k</span> | Reading time: <span class="post-count">9</span>min</span></div></div></header><article class="cxo-up" id="cxo-content-outer"><section id="cxo-content-inner"><article class="article-entry" id="post"><h1 id="MySQL并发相关知识"><a href="#MySQL并发相关知识" class="headerlink" title="MySQL并发相关知识"></a>MySQL并发相关知识</h1><h2 id="1-事务和并发问题"><a href="#1-事务和并发问题" class="headerlink" title="1 事务和并发问题"></a>1 事务和并发问题</h2><p>​        MySQL默认开启自动提交，每执行一条sql语句就自动提交事务。在MySQL中使用事务首先要关闭自动提交，使用手动提交的方式原子执行多个sql语句。</p>
+<h3 id="1-1-什么是事务"><a href="#1-1-什么是事务" class="headerlink" title="1.1 什么是事务"></a>1.1 什么是事务</h3><p>​        事物是MySQL最小的执行单元，一个事务的执行就是多条SQL语句的执行，事务中所有SQL语句执行完毕后执行commit操作，提交该事务中所有的结果数据到数据库中，如果发生异常，则事务通过RollBack操作回滚到最初的状态。</p>
+<h3 id="1-2-RollBack的实现"><a href="#1-2-RollBack的实现" class="headerlink" title="1.2 RollBack的实现"></a>1.2 RollBack的实现</h3><p>​        在事务执行过程中如果发生异常会回滚该事务。RollBack是通过事务日志来实现的。在事务执行中，每个SQL语句的执行都有详细的记录，记录在事务日志中，如果发生异常，就按照事务日志中的信息来回滚数据。</p>
+<h3 id="1-3-事务的四大特性（ACID）"><a href="#1-3-事务的四大特性（ACID）" class="headerlink" title="1.3 事务的四大特性（ACID）"></a>1.3 事务的四大特性（ACID）</h3><h4 id="原子性（automicity）"><a href="#原子性（automicity）" class="headerlink" title="原子性（automicity）"></a>原子性（automicity）</h4><p>​        一个事务的执行具有原子性，事务中包含的sql或全部执行成功，或全部失败。</p>
+<h4 id="一致性（consistency）"><a href="#一致性（consistency）" class="headerlink" title="一致性（consistency）"></a>一致性（consistency）</h4><p>​        数据库在执行事务时，是从一个一致性状态转到另一个一致性状态。例如银行系统中总金额为100元，A账户有50元，B账户有50元。这是一个一致性状态。执行一个事务，A向B转账20元，事务执行完毕后，银行总金额还是100元，如果变成别的金额了，就破坏了一致性。</p>
+<h4 id="隔离性（isolation）"><a href="#隔离性（isolation）" class="headerlink" title="隔离性（isolation）"></a>隔离性（isolation）</h4><p>​        多个线程执行事务是相互隔离的，一个事务对于其他同时执行的事务来说通常是不可见的（这取决于隔离级别）。</p>
+<h4 id="持久性（durability）"><a href="#持久性（durability）" class="headerlink" title="持久性（durability）"></a>持久性（durability）</h4><p>​        一旦事务提交，那么事务对数据库的改变是持久性的，不会再改变。</p>
+<h3 id="1-4-事务并发的三个问题"><a href="#1-4-事务并发的三个问题" class="headerlink" title="1.4 事务并发的三个问题"></a>1.4 事务并发的三个问题</h3><h4 id="（1）脏读"><a href="#（1）脏读" class="headerlink" title="（1）脏读"></a>（1）脏读</h4><p>​        A事务读取B事务尚未提交的数据，此时如果B事务发生错误并执行回滚操作，那么A事务读取到的数据就是脏数据。</p>
+<h4 id="（2）不可重复读"><a href="#（2）不可重复读" class="headerlink" title="（2）不可重复读"></a>（2）不可重复读</h4><p>​        事务A在执行读取操作，由整个事务A比较大，前后读取同一条数据需要经历很长的时间 。而在事务A第一次读取数据，比如此时读取了小明的年龄为20岁，事务B执行更改操作，将小明的年龄更改为30岁，此时事务A第二次读取到小明的年龄时，发现其年龄是30岁，和之前的数据不一样了，也就是数据不重复了，系统不可以读取到重复的数据，成为不可重复读。</p>
+<h4 id="（3）幻读"><a href="#（3）幻读" class="headerlink" title="（3）幻读"></a>（3）幻读</h4><p>​        事务A在执行读取操作，需要两次统计数据的总量，前一次查询数据总量后，此时事务B执行了新增数据的操作并提交后，这个时候事务A读取的数据总量和之前统计的不一样，就像产生了幻觉一样，平白无故的多了几条数据，成为幻读。</p>
+<h3 id="1-5-事务的隔离级别"><a href="#1-5-事务的隔离级别" class="headerlink" title="1.5 事务的隔离级别"></a>1.5 事务的隔离级别</h3><h4 id="读未提交（Read-Uncommitted"><a href="#读未提交（Read-Uncommitted" class="headerlink" title="读未提交（Read Uncommitted)"></a>读未提交（Read Uncommitted)</h4><p>​        在这种隔离级别下，所有事务能够读取其他事务未提交的数据。读取其他事务未提交的数据，会造成脏读。因此在该种隔离级别下，不能解决脏读、不可重复读和幻读。</p>
+<h4 id="读已提交（Read-Committed）"><a href="#读已提交（Read-Committed）" class="headerlink" title="读已提交（Read Committed）"></a>读已提交（Read Committed）</h4><p>​        在这种隔离级别下，所有事务只能读取其他事务已经提交的内容。能够彻底解决脏读的现象。但在这种隔离级别下，会出现一个事务的前后多次的查询中却返回了不同内容的数据的现象，也就是出现了不可重复读。</p>
+<h4 id="可重复读（Repeatable-Read）"><a href="#可重复读（Repeatable-Read）" class="headerlink" title="可重复读（Repeatable Read）"></a>可重复读（Repeatable Read）</h4><p>​        在这种隔离级别下，所有事务前后多次的读取到的数据内容是不变的。也就是某个事务在执行的过程中，不允许其他事务进行update操作，但允许其他事务进行add操作，造成某个事务前后多次读取到的数据总量不一致的现象，从而产生幻读。</p>
+<h4 id="可串行化（Serializable）"><a href="#可串行化（Serializable）" class="headerlink" title="可串行化（Serializable）"></a>可串行化（Serializable）</h4><p>​        在这种隔离级别下，所有的事务顺序执行，所以他们之间不存在冲突，从而能有效地解决脏读、不可重复读和幻读的现象。但是安全和效率不能兼得，这样事务隔离级别，会导致大量的操作超时和锁竞争，从而大大降低数据库的性能，一般不使用这样事务隔离级别。</p>
+<h2 id="2-MySQL锁"><a href="#2-MySQL锁" class="headerlink" title="2 MySQL锁"></a>2 MySQL锁</h2><p>​        锁是计算机协调多个进程或线程并发访问某一资源的机制。锁保证数据并发访问的一致性、有效性；锁冲突也是影响数据库并发访问性能的一个重要因素。锁是Mysql在服务器层和存储引擎层的的并发控制。</p>
+<p>​        加锁是消耗资源的，锁的各种操作，包括获得锁、检测锁是否是否已解除、释放锁等。</p>
+<h3 id="共享锁和排它锁"><a href="#共享锁和排它锁" class="headerlink" title="共享锁和排它锁"></a>共享锁和排它锁</h3><ul>
+<li>共享锁（读锁）：其他事务可以读，但不能写。</li>
+<li>排他锁（写锁） ：其他事务不能读取，也不能写。</li>
+</ul>
+<h3 id="粒度锁"><a href="#粒度锁" class="headerlink" title="粒度锁"></a>粒度锁</h3><p>​        MySQL 不同的存储引擎支持不同的锁机制，所有的存储引擎都以自己的方式显现了锁机制，服务器层完全不了解存储引擎中的锁实现：</p>
+<ul>
+<li>MyISAM 和 MEMORY 存储引擎采用的是表级锁（table-level locking）</li>
+<li>BDB 存储引擎采用的是页面锁（page-level locking），但也支持表级锁</li>
+<li>InnoDB 存储引擎既支持行级锁（row-level locking），也支持表级锁，但默认情况下是采用行级锁。</li>
+</ul>
+<p>​        默认情况下，表锁和行锁都是自动获得的， 不需要额外的命令。但有的情况下， 用户需要明确地进行锁表或者进行事务的控制， 以便确保整个事务的完整性，这样就需要使用事务控制和锁定语句来完成。</p>
+<h4 id="不同粒度锁比较："><a href="#不同粒度锁比较：" class="headerlink" title="不同粒度锁比较："></a>不同粒度锁比较：</h4><ul>
+<li>表级锁：开销小，加锁快；不会出现死锁；锁定粒度大，发生锁冲突的概率最高，并发度最低。存储引擎通过总是一次性同时获取所有需要的锁以及总是按相同的顺序获取表锁来避免死锁。更适合于以查询为主，并发用户少，只有少量按索引条件更新数据的应用，如Web 应用</li>
+<li>行级锁：开销大，加锁慢；会出现死锁；锁定粒度最小，发生锁冲突的概率最低，并发度也最高。在 InnoDB 中，除单个 SQL 组成的事务外，锁是逐步获得的，这就决定了在 InnoDB 中发生死锁是可能的。行级锁只在存储引擎层实现，而Mysql服务器层没有实现。 行级锁更适合于有大量按索引条件并发更新少量不同数据，同时又有并发查询的应用，如一些在线事务处理（OLTP）系统。</li>
+<li>页面锁：开销和加锁时间界于表锁和行锁之间；会出现死锁；锁定粒度界于表锁和行锁之间，并发度一般。</li>
+</ul>
+<h3 id="死锁"><a href="#死锁" class="headerlink" title="死锁"></a>死锁</h3><h4 id="死锁产生"><a href="#死锁产生" class="headerlink" title="死锁产生"></a>死锁产生</h4><ul>
+<li><p>死锁是指两个或多个事务在同一资源上相互占用，并请求锁定对方占用的资源，从而导致恶性循环。</p>
+</li>
+<li><p>当事务试图以不同的顺序锁定资源时，就可能产生死锁。多个事务同时锁定同一个资源时也可能会产生死锁。</p>
+</li>
+<li><p>锁的行为和顺序和存储引擎相关。以同样的顺序执行语句，有些存储引擎会产生死锁有些不会——死锁有双重原因：真正的数据冲突；存储引擎的实现方式。</p>
+</li>
+</ul>
+<h4 id="检测死锁"><a href="#检测死锁" class="headerlink" title="检测死锁"></a>检测死锁</h4><p>​        数据库系统实现了各种死锁检测和死锁超时的机制。InnoDB存储引擎能检测到死锁的循环依赖并立即返回一个错误。</p>
+<h4 id="死锁恢复"><a href="#死锁恢复" class="headerlink" title="死锁恢复"></a>死锁恢复</h4><p>​        死锁发生以后，只有部分或完全回滚其中一个事务，才能打破死锁，InnoDB目前处理死锁的方法是，将持有最少行级排他锁的事务进行回滚。所以事务型应用程序在设计时必须考虑如何处理死锁，多数情况下只需要重新执行因死锁回滚的事务即可。</p>
+<h4 id="外部锁的死锁检测"><a href="#外部锁的死锁检测" class="headerlink" title="外部锁的死锁检测"></a>外部锁的死锁检测</h4><p>​        发生死锁后，InnoDB 一般都能自动检测到，并使一个事务释放锁并回退，另一个事务获得锁，继续完成事务。但在涉及外部锁，或涉及表锁的情况下，InnoDB 并不能完全自动检测到死锁， 这需要通过设置锁等待超时参数 innodb_lock_wait_timeout 来解决。</p>
+<h4 id="死锁影响性能"><a href="#死锁影响性能" class="headerlink" title="死锁影响性能"></a>死锁影响性能</h4><p>​        死锁会影响性能而不是会产生严重错误，因为InnoDB会自动检测死锁状况并回滚其中一个受影响的事务。在高并发系统上，当许多线程等待同一个锁时，死锁检测可能导致速度变慢。 有时当发生死锁时，禁用死锁检测（使用innodb_deadlock_detect配置选项）可能会更有效，这时可以依赖innodb_lock_wait_timeout设置进行事务回滚。</p>
+<h3 id="乐观锁、悲观锁"><a href="#乐观锁、悲观锁" class="headerlink" title="乐观锁、悲观锁"></a>乐观锁、悲观锁</h3><ul>
+<li><p><strong>乐观锁</strong>：假设不会发生并发冲突，只在提交操作时检查是否违反数据完整性。 乐观锁不能解决脏读的问题。</p>
+<p>乐观锁, 顾名思义，就是很乐观，每次去拿数据的时候都认为别人不会修改，所以不会上锁，但是在更新的时候会判断一下在此期间别人有没有去更新这个数据，可以使用版本号等机制。乐观锁适用于多读的应用类型，这样可以提高吞吐量，像数据库如果提供类似于write_condition机制的其实都是提供的乐观锁。</p>
+</li>
+<li><p><strong>悲观锁</strong>：假定会发生并发冲突，屏蔽一切可能违反数据完整性的操作。</p>
+<p>悲观锁，顾名思义，就是很悲观，每次去拿数据的时候都认为别人会修改，所以每次在拿数据的时候都会上锁，这样别人想拿这个数据就会block直到它拿到锁。传统的关系型数据库里边就用到了很多这种锁机制，比如行锁，表锁等，读锁，写锁等，都是在做操作之前先上锁。</p>
+</li>
+</ul>
+</article><!-- lincense--><div class="license-wrapper"><p> <span>Author:  </span><a href="http://learingLei.github.io">LearingLei</a></p><p> <span>Link:  </span><a href="http://learinglei.github.io/2020/04/11/mysql%E5%B9%B6%E5%8F%91%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86/">http://learinglei.github.io/2020/04/11/mysql%E5%B9%B6%E5%8F%91%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86/</a></p><p> <span>Copyright:  </span><span>All articles in this blog are licensed under <a rel="license noopener" href="https://creativecommons.org/licenses/by-nc-nd/3.0" target="_blank">CC BY-NC-SA 3.0</a> unless stating additionally.</span></p></div><div class="post-paginator"><a class="nextSlogan" href="/2020/03/14/%E5%88%9D%E4%BA%86%E8%A7%A3Neo4j%E6%9F%A5%E8%AF%A2%E8%AF%AD%E8%A8%80%E2%80%94%E2%80%94CQL/" title="初了解Neo4j查询语言——CQL"><span>NextPost ></span><br><span class="nextTitle">初了解Neo4j查询语言——CQL</span></a><div class="clear"></div></div><div id="comment"></div></section></article><footer id="cxo-footer-outer"><div id="cxo-footer-inner"><p class="footer-container"><span>Site by </span><a href="http://hexo.io" target="_blank" rel="noopener"><span>Hexo</span></a><span> | theme </span><a href="https://github.com/Longlongyu/hexo-theme-Cxo" target="_blank" rel="noopener"><span>Cxo</span></a></p><i class="fa fa-user"> </i><span id="busuanzi_value_site_uv"></span><span> | </span><i class="fa fa-eye"> </i><span id="busuanzi_value_site_pv"></span></div></footer><!-- catelog--><div class="toc-wrapper" style="top: 70vh;"><div class="toc-catalog"><i class="fa fa-list"> </i><span>CATALOG</span></div><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#MySQL并发相关知识"><span class="toc-number">1.</span> <span class="toc-text">MySQL并发相关知识</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-事务和并发问题"><span class="toc-number">1.1.</span> <span class="toc-text">1 事务和并发问题</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-什么是事务"><span class="toc-number">1.1.1.</span> <span class="toc-text">1.1 什么是事务</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-RollBack的实现"><span class="toc-number">1.1.2.</span> <span class="toc-text">1.2 RollBack的实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-事务的四大特性（ACID）"><span class="toc-number">1.1.3.</span> <span class="toc-text">1.3 事务的四大特性（ACID）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#原子性（automicity）"><span class="toc-number">1.1.3.1.</span> <span class="toc-text">原子性（automicity）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#一致性（consistency）"><span class="toc-number">1.1.3.2.</span> <span class="toc-text">一致性（consistency）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#隔离性（isolation）"><span class="toc-number">1.1.3.3.</span> <span class="toc-text">隔离性（isolation）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#持久性（durability）"><span class="toc-number">1.1.3.4.</span> <span class="toc-text">持久性（durability）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-事务并发的三个问题"><span class="toc-number">1.1.4.</span> <span class="toc-text">1.4 事务并发的三个问题</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#（1）脏读"><span class="toc-number">1.1.4.1.</span> <span class="toc-text">（1）脏读</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#（2）不可重复读"><span class="toc-number">1.1.4.2.</span> <span class="toc-text">（2）不可重复读</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#（3）幻读"><span class="toc-number">1.1.4.3.</span> <span class="toc-text">（3）幻读</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-5-事务的隔离级别"><span class="toc-number">1.1.5.</span> <span class="toc-text">1.5 事务的隔离级别</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#读未提交（Read-Uncommitted"><span class="toc-number">1.1.5.1.</span> <span class="toc-text">读未提交（Read Uncommitted)</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#读已提交（Read-Committed）"><span class="toc-number">1.1.5.2.</span> <span class="toc-text">读已提交（Read Committed）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#可重复读（Repeatable-Read）"><span class="toc-number">1.1.5.3.</span> <span class="toc-text">可重复读（Repeatable Read）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#可串行化（Serializable）"><span class="toc-number">1.1.5.4.</span> <span class="toc-text">可串行化（Serializable）</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-MySQL锁"><span class="toc-number">1.2.</span> <span class="toc-text">2 MySQL锁</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#共享锁和排它锁"><span class="toc-number">1.2.1.</span> <span class="toc-text">共享锁和排它锁</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#粒度锁"><span class="toc-number">1.2.2.</span> <span class="toc-text">粒度锁</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#不同粒度锁比较："><span class="toc-number">1.2.2.1.</span> <span class="toc-text">不同粒度锁比较：</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#死锁"><span class="toc-number">1.2.3.</span> <span class="toc-text">死锁</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#死锁产生"><span class="toc-number">1.2.3.1.</span> <span class="toc-text">死锁产生</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#检测死锁"><span class="toc-number">1.2.3.2.</span> <span class="toc-text">检测死锁</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#死锁恢复"><span class="toc-number">1.2.3.3.</span> <span class="toc-text">死锁恢复</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#外部锁的死锁检测"><span class="toc-number">1.2.3.4.</span> <span class="toc-text">外部锁的死锁检测</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#死锁影响性能"><span class="toc-number">1.2.3.5.</span> <span class="toc-text">死锁影响性能</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#乐观锁、悲观锁"><span class="toc-number">1.2.4.</span> <span class="toc-text">乐观锁、悲观锁</span></a></li></ol></li></ol></li></ol></div><!-- top--><i class="fa fa-arrow-up close" id="go-up" aria-hidden="true"></i></body></html>
